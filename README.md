@@ -1,4 +1,4 @@
 # rambles
 A live per-process RAM usage pie chart
 
-![alt text](https://github.com/astromancer/rambles/blob/master/example.jpg?raw=true)
+![](https://github.com/astromancer/rambles/blob/master/example.jpg?raw=True "Per-process RAM usage")
