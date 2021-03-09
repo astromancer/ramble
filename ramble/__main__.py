@@ -11,7 +11,7 @@ from ramble.core import LivePieChart
 pie = LivePieChart()
 #                            func              init           
 ani = FuncAnimation(pie.fig, pie.update, 100, pie.update,
-                    save_count=0, interval=250, blit=False)
+                    save_count=0, interval=2000, blit=False)
 # ani.save('~/work/rambles/example.gif',
 #          fps=4)
 plt.show()
