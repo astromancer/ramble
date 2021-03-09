@@ -15,7 +15,7 @@ from psutil import virtual_memory
 
 # setup logging
 logging.basicConfig()
-logger = logging.getLogger('rambles')#get_module_logger()
+logger = logging.getLogger('rambles')  # get_module_logger()
 logger.setLevel(logging.INFO)
 
 
@@ -23,7 +23,7 @@ TOTAL_RAM_KB = virtual_memory().total / 1024
 THRESHOLD = 0.01    # 1%
 # processes with fractional memory usage  below `THRESHOLD` not displayed
 
-COLORS = plt.get_cmap('Set1').colors
+COLORS = plt.get_cmap('Set1').colors[::-1]
 
 # FIXME: blitting of text that extends off-axes!
 # FIXME: text ha needs to change when process gains / looses enough memory to
@@ -64,11 +64,11 @@ def get_data():
 #     def _blit_draw(self, artists):
 
 
-class LivePieChart(LoggingMixin):
+class LivePieChart:  # (LoggingMixin):
     """A per-process RAM usage pie chart"""
 
     logger = logger
-    
+
     def __init__(self, wedgeprops=None, labelprops=None, ptextprops=None,
                  label_space=0.025, colors=COLORS):
         #
@@ -82,13 +82,16 @@ class LivePieChart(LoggingMixin):
         self.ax, self.ax1 = ax, ax1 = axes
         self.colours = COLORS
         # plt.rcParams['axes.prop_cycle'].by_key()['color']
-        ax.set_aspect('equal')
+        # ax.set_aspect('equal')
         # make the axes limits larger so blitting works
         # (text needs to be inside axes!)
-        ax.set(xlim=(-1.5, 1.5),
+        self.fig.set_facecolor('0.5')
+        ax.set(aspect='equal',
+               facecolor='none',
+               xlim=(-1.5, 1.5),
                ylim=(-1.2, 1.2))
         ax.set_axis_off()
-        ax1.set(xticks=[], yticks=[])
+        ax1.set(xticks=[], yticks=[], facecolor='none')
         self.fig.canvas.manager.set_window_title(
             'Rambles: Per Process Memory Usage')
 
@@ -109,7 +112,7 @@ class LivePieChart(LoggingMixin):
         self.data, self.total = get_data()
         self.art = {}
         self.wedgeprops = wedgeprops or {}
-        self.labelprops = wedgeprops or {}
+        self.labelprops = labelprops or {}
         self.ptextprops = ptextprops or {}
 
         #  make pie chart
@@ -141,7 +144,7 @@ class LivePieChart(LoggingMixin):
                 self.ax1.add_patch(rect)
                 texts = self.get_texts(cmd, np.pi * thetas.sum(),
                                        self.labelprops, self.ptextprops)
-                self.art[cmd] = (wedge, rect) + texts
+                self.art[cmd] = (wedge, rect, *texts)
                 self.logger.debug(f'Created new wedge for {cmd}')
 
         self.logger.debug(f'Updated {i} wedges')
@@ -184,32 +187,36 @@ class LivePieChart(LoggingMixin):
 
     def get_texts(self, cmd, theta, labelprops, ptextprops):
 
-        xy = np.array([np.cos(theta), np.sin(theta)])
-        x, y = (1. + self.label_space) * xy
-        # label orientation
-        d90 = abs(np.degrees(theta - np.pi / 2))
-        ha = ('left' if x > 0 else 'right') #('center' if (d90 < 5) else 
-        va = 'baseline' if (d90 < 5) else 'center'
-
-        count, frac = self.data[cmd]
-        txt = self.ax.text(x, y, cmd_with_count(cmd, count),
+        txt = self.ax.text(0, 0, '',
                            clip_on=False,
-                           horizontalalignment=ha,
-                           verticalalignment=va,
                            size=plt.rcParams['xtick.labelsize'])
         txt.set(**labelprops)
 
-        x, y = 0.6 * xy
-        theta = np.degrees(theta)
-        label_rotation = (theta + 180 * int((theta > 90) & (theta < 270)))
-        ptxt = self.ax.text(x, y, self.format_percent(frac),
+        ptxt = self.ax.text(0, 0, '',
                             clip_on=False,
-                            rotation=label_rotation,
                             ha='center',
                             va='center')
         ptxt.set(**ptextprops)
 
+        # update
+        self.update_text(txt, ptxt, cmd, theta)
         return txt, ptxt
+
+    def update_text(self, label, ptext, cmd, theta):
+        #
+        count, frac = self.data[cmd]
+
+        # update label
+        xy = np.array([np.cos(theta), np.sin(theta)]) * (1. + self.label_space)
+        theta = np.degrees(theta)
+        label.set(position=xy, text=cmd_with_count(cmd, count),
+                  ha=('left' if xy[0] > 0 else 'right'),
+                  va=('baseline' if (abs(theta - 90) < 5) else 'center'))
+
+        # update ptext
+        ptext.set(text=self.format_percent(frac),
+                  position=(0.6 * xy),
+                  rotation=(theta + 180 * int((theta > 90) & (theta < 270))))
 
     def update_wedge(self, cmd, angles, frac):
         wedge, rect, label, ptext = self.art[cmd]
@@ -223,15 +230,7 @@ class LivePieChart(LoggingMixin):
 
         # update label position
         theta = angles.mean() * 2 * np.pi
-        xy = np.array([np.cos(theta), np.sin(theta)]) * (1. + self.label_space)
-        label.set_position(xy)
-
-        # update ptext
-        ptext.set_text(self.format_percent(frac))
-        ptext.set_position(0.6 * xy)
-        theta = np.degrees(theta)
-        label_rotation = (theta + 180 * int((theta > 90) & (theta < 270)))
-        ptext.set_rotation(label_rotation)
+        self.update_text(label, ptext, cmd, theta)
 
     def format_percent(self, p):
         # percentage string formatter
@@ -250,11 +249,6 @@ class LivePieChart(LoggingMixin):
 
     def update(self, _=None):
         return [*self.get_artists()]
-
-    # def init_ani(self, _=None):
-    #     art = [*self.update()]
-    #     # self.fig.canvas.draw()
-    #     return art
 
 
 # LivePieChart.logger.setLevel(logging.INFO)
