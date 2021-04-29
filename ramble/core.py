@@ -10,8 +10,9 @@ from matplotlib.patches import Wedge, Rectangle
 from ps_mem import get_memory_usage, human, cmd_with_count
 from psutil import virtual_memory
 
-
 # from recipes.logging import LoggingMixin
+from recipes import cosort
+
 
 # setup logging
 logging.basicConfig()
@@ -31,7 +32,7 @@ COLORS = plt.get_cmap('Set1').colors[::-1]
 # TODO: print total / used / free in human
 # TODO mpl bug report. FuncAnimation doesn't actually work with generators
 # dispite claims to the contrary in docs
-# TODO: don;t rotate wedge label if there is enough space to display it horizontally
+# TODO: don't rotate wedge label if there is enough space to display it horizontally
 # FIXME: Free / used percentages wrong (sometimes!?)
 # FIXME: overlapping texts
 
@@ -127,14 +128,16 @@ class LivePieChart:  # (LoggingMixin):
         marks = np.cumsum((0, ) + fracs)
 
         current = set(self.art)  # set of process names
+        # wedge, rect, label, ptext = self.art[cmd]
 
+        i = 0
         for i, cmd in enumerate(self.data):
             current -= {cmd}
             thetas = marks[[i, i+1]]
             frac = self.data[cmd][1]
             x = thetas * self.total / TOTAL_RAM_KB
             if cmd in self.art:
-                self.update_wedge(cmd,  thetas, frac)
+                self.update_wedge(cmd, thetas, frac)
             else:
                 # new
                 colour = self.colours[i % m]
@@ -219,6 +222,18 @@ class LivePieChart:  # (LoggingMixin):
                   rotation=(theta + 180 * int((theta > 90) & (theta < 270))))
 
     def update_wedge(self, cmd, angles, frac):
+        """
+        Update wedge and corresponding rectangle patches
+
+        Parameters
+        ----------
+        cmd : [type]
+            [description]
+        angles : [type]
+            [description]
+        frac : [type]
+            [description]
+        """
         wedge, rect, label, ptext = self.art[cmd]
 
         wedge.set_theta1(360 * angles[0])
@@ -232,6 +247,17 @@ class LivePieChart:  # (LoggingMixin):
         theta = angles.mean() * 2 * np.pi
         self.update_text(label, ptext, cmd, theta)
 
+    def update_colours(self):
+        wedges = next(zip(*self.art.values()))
+        thetas, colours = zip(*[(w.theta1, w.get_facecolor()) for w in wedges])
+        thetas, colours, wedges = cosort(thetas, colours, wedges)
+        # check if two of the same colour next to each other
+        if (np.ptp(colours, 1) == 0).any():
+            # re-assign colours
+            n = len(self.colours)
+            for i, w in enumerate(wedges):
+                w.set_facecolor(self.colours[i % n])
+    
     def format_percent(self, p):
         # percentage string formatter
         return f'{p:.1%} ({human(p * self.total)})'
@@ -241,6 +267,7 @@ class LivePieChart:  # (LoggingMixin):
         self.logger.debug('Updating')
         self.data, self.total = get_data()
         self.update_wedges()
+        self.update_colours()
 
         for art in self.art.values():
             yield from iter(art)
