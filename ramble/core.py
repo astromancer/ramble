@@ -78,6 +78,9 @@ class LivePieChart:  # (LoggingMixin):
             figsize=(8.75, 7.35),
             tight_layout=True,
             gridspec_kw=dict(height_ratios=(6, 1)))
+        #
+        self.fig.canvas.manager.set_window_title(
+            'Ramble: Per Process Memory Usage')
 
         # setup axes
         self.ax, self.ax1 = ax, ax1 = axes
@@ -93,8 +96,6 @@ class LivePieChart:  # (LoggingMixin):
                ylim=(-1.2, 1.2))
         ax.set_axis_off()
         ax1.set(xticks=[], yticks=[], facecolor='none')
-        self.fig.canvas.manager.set_window_title(
-            'Rambles: Per Process Memory Usage')
 
         # init texts
         self.text_used = ax1.text(0, 0, '', ha='center', va='center')
@@ -252,12 +253,12 @@ class LivePieChart:  # (LoggingMixin):
         thetas, colours = zip(*[(w.theta1, w.get_facecolor()) for w in wedges])
         thetas, colours, wedges = cosort(thetas, colours, wedges)
         # check if two of the same colour next to each other
-        if (np.ptp(colours, 1) == 0).any():
+        if (np.diff([*colours, colours[0]], 1, 0) == 0).any():
             # re-assign colours
             n = len(self.colours)
             for i, w in enumerate(wedges):
                 w.set_facecolor(self.colours[i % n])
-    
+
     def format_percent(self, p):
         # percentage string formatter
         return f'{p:.1%} ({human(p * self.total)})'
